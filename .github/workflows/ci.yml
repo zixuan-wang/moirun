@@ -40,5 +40,5 @@ jobs:
         working-directory: ./moirun
 
       - name: Build Tauri
-        run: cargo tauri build
-        working-directory: ./moirun/src-tauri
+        run: npx tauri build
+        working-directory: ./moirun

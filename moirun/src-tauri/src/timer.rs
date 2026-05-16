@@ -22,6 +22,9 @@ pub struct TimerState {
 
     pub dnd: DoNotDisturbState,
     pub eye_snooze_until: Option<Instant>,
+
+    pub system_pause_start: Option<Instant>,
+    pub system_pause_depth: u32,
 }
 
 impl TimerState {
@@ -39,6 +42,9 @@ impl TimerState {
 
             dnd: DoNotDisturbState::Off,
             eye_snooze_until: None,
+
+            system_pause_start: None,
+            system_pause_depth: 0,
         }
     }
 
@@ -76,6 +82,31 @@ impl TimerState {
             None => DoNotDisturbState::Off,
         };
     }
+
+    pub fn enter_system_pause(&mut self) {
+        if self.system_pause_depth == 0 {
+            self.system_pause_start = Some(Instant::now());
+        }
+        self.system_pause_depth += 1;
+    }
+
+    pub fn exit_system_pause(&mut self) {
+        if self.system_pause_depth == 0 {
+            return;
+        }
+        self.system_pause_depth -= 1;
+        if self.system_pause_depth == 0 {
+            if let Some(start) = self.system_pause_start.take() {
+                let elapsed = Instant::now().saturating_duration_since(start);
+                self.water_next += elapsed;
+                self.eye_next += elapsed;
+            }
+        }
+    }
+
+    pub fn is_system_paused(&self) -> bool {
+        self.system_pause_depth > 0
+    }
 }
 
 pub fn spawn_timer_loop(app_handle: AppHandle, state: Arc<Mutex<TimerState>>) {
@@ -85,6 +116,10 @@ pub fn spawn_timer_loop(app_handle: AppHandle, state: Arc<Mutex<TimerState>>) {
         let mut st = state.lock().unwrap();
 
         if st.is_dnd_active() {
+            continue;
+        }
+
+        if st.is_system_paused() {
             continue;
         }
 

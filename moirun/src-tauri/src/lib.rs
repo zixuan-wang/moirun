@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 use tauri_plugin_store::StoreExt;
 
+mod power_monitor;
 mod settings;
 mod stats;
 mod timer;
@@ -158,6 +159,21 @@ pub fn run() {
 
             tray::setup_tray(app.handle(), timer_state.clone())?;
             spawn_timer_loop(app.handle().clone(), timer_state.clone());
+
+            let ts_suspend = timer_state.clone();
+            let ts_resume = timer_state.clone();
+            power_monitor::init(
+                move || {
+                    if let Ok(mut ts) = ts_suspend.lock() {
+                        ts.enter_system_pause();
+                    }
+                },
+                move || {
+                    if let Ok(mut ts) = ts_resume.lock() {
+                        ts.exit_system_pause();
+                    }
+                },
+            );
 
             let app_handle = app.handle().clone();
             let store_clone = store.clone();
