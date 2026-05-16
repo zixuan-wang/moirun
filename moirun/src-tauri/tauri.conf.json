@@ -55,10 +55,7 @@
     ],
     "macOS": {
       "entitlements": "./Entitlements.plist",
-      "minimumSystemVersion": "10.15",
-      "dmg": {
-        "background": "#ffffff"
-      }
+      "minimumSystemVersion": "10.15"
     }
   }
 }
