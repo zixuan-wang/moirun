@@ -13,3 +13,8 @@ export interface DailyStats {
   water_count: number;
   eye_care_count: number;
 }
+
+export interface TimerStatus {
+  water_remaining_secs: number;
+  eye_remaining_secs: number;
+}

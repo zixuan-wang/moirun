@@ -11,7 +11,7 @@ mod window;
 
 use settings::AppSettings;
 use stats::DailyStats;
-use timer::{spawn_timer_loop, TimerState};
+use timer::{spawn_timer_loop, TimerState, TimerStatus};
 use window::{close_all_overlay_windows, close_eyecare_window, get_or_create_eyecare_window, get_or_create_settings_window};
 
 #[tauri::command]
@@ -126,6 +126,12 @@ fn get_dnd_status(timer_state: tauri::State<'_, Arc<Mutex<TimerState>>>) -> Resu
     Ok(ts.is_dnd_active())
 }
 
+#[tauri::command]
+fn get_timer_status(timer_state: tauri::State<'_, Arc<Mutex<TimerState>>>) -> Result<TimerStatus, String> {
+    let ts = timer_state.lock().map_err(|e| e.to_string())?;
+    Ok(ts.get_status())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -148,6 +154,7 @@ pub fn run() {
             open_eye_care_window,
             close_eye_care,
             get_dnd_status,
+            get_timer_status,
         ])
         .setup(|app| {
             let store = app.store("moirun.json")?;

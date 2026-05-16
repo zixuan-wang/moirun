@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { enable, disable } from "@tauri-apps/plugin-autostart";
-import type { AppSettings, DailyStats } from "../types";
+import type { AppSettings, DailyStats, TimerStatus } from "../types";
 
 const DEFAULT_SETTINGS: AppSettings = {
   water_reminder_enabled: true,
@@ -14,6 +14,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   auto_start: false,
 };
 
+function formatCountdown(secs: number): string {
+  if (secs <= 0) return "即将提醒";
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}分${s.toString().padStart(2, "0")}秒`;
+}
+
 function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [stats, setStats] = useState<DailyStats>({
@@ -21,7 +28,13 @@ function SettingsPage() {
     water_count: 0,
     eye_care_count: 0,
   });
+  const [timerStatus, setTimerStatus] = useState<TimerStatus>({
+    water_remaining_secs: 0,
+    eye_remaining_secs: 0,
+  });
   const [saved, setSaved] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     invoke<AppSettings>("get_settings")
@@ -41,27 +54,45 @@ function SettingsPage() {
     };
   }, []);
 
-  const updateSetting = <K extends keyof AppSettings>(
+  useEffect(() => {
+    const interval = setInterval(() => {
+      invoke<TimerStatus>("get_timer_status")
+        .then((s) => setTimerStatus(s))
+        .catch(console.error);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const updateSetting = useCallback(<K extends keyof AppSettings>(
     key: K,
     value: AppSettings[K],
   ) => {
-    const next = { ...settings, [key]: value };
-    setSettings(next);
-    invoke("set_settings", { settings: next })
+    setSettings((prev) => ({ ...prev, [key]: value }));
+    setHasChanges(true);
+  }, []);
+
+  const saveSettings = useCallback(() => {
+    setSaving(true);
+    invoke("set_settings", { settings })
       .then(() => {
         setSaved(true);
-        setTimeout(() => setSaved(false), 1000);
+        setHasChanges(false);
+        setTimeout(() => setSaved(false), 1500);
       })
-      .catch(console.error);
+      .catch((err) => {
+        console.error("保存失败:", err);
+        alert("保存失败: " + err);
+      })
+      .finally(() => setSaving(false));
 
-    if (key === "auto_start") {
-      if (value === true) {
+    if (settings.auto_start !== undefined) {
+      if (settings.auto_start) {
         enable().catch(console.error);
       } else {
         disable().catch(console.error);
       }
     }
-  };
+  }, [settings]);
 
   return (
     <div
@@ -100,12 +131,18 @@ function SettingsPage() {
               {stats.water_count}
             </div>
             <div style={{ fontSize: "12px", color: "#888" }}>今日饮水</div>
+            <div style={{ fontSize: "11px", color: "#4a90d9", marginTop: "4px" }}>
+              {formatCountdown(timerStatus.water_remaining_secs)}
+            </div>
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: "28px", fontWeight: 700, color: "#5cb85c" }}>
               {stats.eye_care_count}
             </div>
             <div style={{ fontSize: "12px", color: "#888" }}>今日护眼</div>
+            <div style={{ fontSize: "11px", color: "#5cb85c", marginTop: "4px" }}>
+              {formatCountdown(timerStatus.eye_remaining_secs)}
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
@@ -215,6 +252,27 @@ function SettingsPage() {
           onChange={(v) => updateSetting("auto_start", v)}
         />
       </Section>
+
+      {/* 保存按钮 */}
+      <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
+        <button
+          onClick={saveSettings}
+          disabled={!hasChanges || saving}
+          style={{
+            flex: 1,
+            padding: "10px",
+            borderRadius: "8px",
+            border: "none",
+            background: hasChanges ? "#4a90d9" : "#ccc",
+            color: "#fff",
+            fontSize: "14px",
+            cursor: hasChanges ? "pointer" : "not-allowed",
+            fontWeight: 600,
+          }}
+        >
+          {saving ? "保存中..." : hasChanges ? "保存设置" : "暂无更改"}
+        </button>
+      </div>
 
       {saved && (
         <div

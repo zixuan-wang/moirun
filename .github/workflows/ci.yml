@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: ./moirun/package-lock.json
 
@@ -42,3 +42,14 @@ jobs:
       - name: Build Tauri
         run: npx tauri build
         working-directory: ./moirun
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: moirun-${{ matrix.platform }}
+          path: |
+            ./moirun/src-tauri/target/release/bundle/dmg/*.dmg
+            ./moirun/src-tauri/target/release/bundle/macos/*.app*
+            ./moirun/src-tauri/target/release/bundle/msi/*.msi
+            ./moirun/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: ignore

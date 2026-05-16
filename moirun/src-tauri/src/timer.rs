@@ -107,6 +107,20 @@ impl TimerState {
     pub fn is_system_paused(&self) -> bool {
         self.system_pause_depth > 0
     }
+
+    pub fn get_status(&self) -> TimerStatus {
+        let now = Instant::now();
+        TimerStatus {
+            water_remaining_secs: self.water_next.saturating_duration_since(now).as_secs(),
+            eye_remaining_secs: self.eye_next.saturating_duration_since(now).as_secs(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct TimerStatus {
+    pub water_remaining_secs: u64,
+    pub eye_remaining_secs: u64,
 }
 
 pub fn spawn_timer_loop(app_handle: AppHandle, state: Arc<Mutex<TimerState>>) {
