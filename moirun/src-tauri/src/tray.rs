@@ -61,7 +61,7 @@ pub fn setup_tray(app: &AppHandle, timer_state: Arc<Mutex<TimerState>>) -> Resul
         .show_menu_on_left_click(true)
         .on_menu_event(move |app, event| match event.id.as_ref() {
             "water_toggle" => {
-                let store = app.state::<tauri_plugin_store::Store<Wry>>();
+                let store = app.state::<Arc<tauri_plugin_store::Store<Wry>>>();
                 let mut settings = AppSettings::load(&store);
                 settings.water_reminder_enabled = !settings.water_reminder_enabled;
                 let _ = settings.save(&store);
@@ -70,7 +70,7 @@ pub fn setup_tray(app: &AppHandle, timer_state: Arc<Mutex<TimerState>>) -> Resul
                 }
             }
             "eye_toggle" => {
-                let store = app.state::<tauri_plugin_store::Store<Wry>>();
+                let store = app.state::<Arc<tauri_plugin_store::Store<Wry>>>();
                 let mut settings = AppSettings::load(&store);
                 settings.eye_care_enabled = !settings.eye_care_enabled;
                 let _ = settings.save(&store);

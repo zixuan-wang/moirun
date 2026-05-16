@@ -15,14 +15,14 @@ use timer::{spawn_timer_loop, TimerState, TimerStatus};
 use window::{close_all_overlay_windows, close_eyecare_window, get_or_create_eyecare_window, get_or_create_settings_window};
 
 #[tauri::command]
-fn get_settings(store: tauri::State<'_, tauri_plugin_store::Store<tauri::Wry>>) -> Result<AppSettings, String> {
+fn get_settings(store: tauri::State<'_, Arc<tauri_plugin_store::Store<tauri::Wry>>>) -> Result<AppSettings, String> {
     Ok(AppSettings::load(&store))
 }
 
 #[tauri::command]
 fn set_settings(
     settings: AppSettings,
-    store: tauri::State<'_, tauri_plugin_store::Store<tauri::Wry>>,
+    store: tauri::State<'_, Arc<tauri_plugin_store::Store<tauri::Wry>>>,
     timer_state: tauri::State<'_, Arc<Mutex<TimerState>>>,
 ) -> Result<(), String> {
     settings.save(&store)?;
@@ -33,13 +33,13 @@ fn set_settings(
 }
 
 #[tauri::command]
-fn get_today_stats(store: tauri::State<'_, tauri_plugin_store::Store<tauri::Wry>>) -> Result<DailyStats, String> {
+fn get_today_stats(store: tauri::State<'_, Arc<tauri_plugin_store::Store<tauri::Wry>>>) -> Result<DailyStats, String> {
     Ok(DailyStats::load(&store))
 }
 
 #[tauri::command]
 fn confirm_water(
-    store: tauri::State<'_, tauri_plugin_store::Store<tauri::Wry>>,
+    store: tauri::State<'_, Arc<tauri_plugin_store::Store<tauri::Wry>>>,
     timer_state: tauri::State<'_, Arc<Mutex<TimerState>>>,
     app: tauri::AppHandle,
 ) -> Result<DailyStats, String> {
@@ -57,7 +57,7 @@ fn confirm_water(
 
 #[tauri::command]
 fn confirm_eye_care(
-    store: tauri::State<'_, tauri_plugin_store::Store<tauri::Wry>>,
+    store: tauri::State<'_, Arc<tauri_plugin_store::Store<tauri::Wry>>>,
     app: tauri::AppHandle,
 ) -> Result<DailyStats, String> {
     let mut stats = DailyStats::load(&store);
