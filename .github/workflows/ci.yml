@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ./moirun/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Install frontend dependencies
+        run: npm install
+        working-directory: ./moirun
+
+      - name: Type-check frontend
+        run: npx tsc --noEmit
+        working-directory: ./moirun
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: ./moirun
+
+      - name: Build Tauri
+        run: cargo tauri build
+        working-directory: ./moirun/src-tauri
