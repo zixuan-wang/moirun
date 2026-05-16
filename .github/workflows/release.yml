@@ -31,7 +31,7 @@ jobs:
           cache-dependency-path: ./moirun/package-lock.json
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        run: rustup update stable
 
       - name: Install frontend dependencies
         run: npm install
