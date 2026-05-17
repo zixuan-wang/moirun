@@ -10,7 +10,7 @@ pub fn get_or_create_settings_window(app: &AppHandle) -> Result<WebviewWindow, S
     let window = tauri::WebviewWindowBuilder::new(
         app,
         "settings",
-        tauri::WebviewUrl::App("/settings".into()),
+        tauri::WebviewUrl::App("/#/settings".into()),
     )
     .title("设置")
     .inner_size(520.0, 640.0)
@@ -32,7 +32,7 @@ pub fn get_or_create_eyecare_window(app: &AppHandle) -> Result<WebviewWindow, St
     let window = tauri::WebviewWindowBuilder::new(
         app,
         "eyecare",
-        tauri::WebviewUrl::App("/eyecare".into()),
+        tauri::WebviewUrl::App("/#/eyecare".into()),
     )
     .title("护眼提醒")
     .inner_size(420.0, 320.0)
@@ -63,7 +63,7 @@ pub fn create_overlay_windows(app: &AppHandle) -> Result<Vec<WebviewWindow>, Str
         let window = tauri::WebviewWindowBuilder::new(
             app,
             &label,
-            tauri::WebviewUrl::App("/overlay".into()),
+            tauri::WebviewUrl::App("/#/overlay".into()),
         )
         .title("")
         .inner_size(size.width as f64, size.height as f64)
