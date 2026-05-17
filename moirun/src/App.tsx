@@ -1,12 +1,17 @@
 import { useEffect } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
-import { listen } from "@tauri-apps/api/event";
 import {
   isPermissionGranted,
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  onWaterReminder,
+  onEyeCareReminder,
+  onShowStats,
+  openEyeCareWindow,
+  openSettingsWindow,
+} from "./services/reminder";
 import SettingsPage from "./pages/SettingsPage";
 import EyeCarePopup from "./pages/EyeCarePopup";
 import OverlayPage from "./pages/OverlayPage";
@@ -18,15 +23,13 @@ function App() {
     let unlistenStats: (() => void) | null = null;
 
     async function setupListeners() {
-      // 请求通知权限
       let permissionGranted = await isPermissionGranted();
       if (!permissionGranted) {
         const permission = await requestPermission();
         permissionGranted = permission === "granted";
       }
 
-      // 监听喝水提醒
-      const uw = await listen("water-reminder", async () => {
+      const uw = await onWaterReminder(() => {
         if (permissionGranted) {
           sendNotification({
             title: "眸润",
@@ -36,16 +39,13 @@ function App() {
       });
       unlistenWater = uw;
 
-      // 监听护眼提醒
-      const ue = await listen<string>("eye-care-reminder", async (e) => {
-        const intensity = e.payload || "gentle";
-        await invoke("open_eye_care_window", { intensity });
+      const ue = await onEyeCareReminder(async (intensity) => {
+        await openEyeCareWindow(intensity);
       });
       unlistenEye = ue;
 
-      // 监听显示统计
-      const us = await listen("show-stats", async () => {
-        await invoke("open_settings_window");
+      const us = await onShowStats(async () => {
+        await openSettingsWindow();
       });
       unlistenStats = us;
     }

@@ -1,21 +1,24 @@
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  getSettings,
+  confirmEyeCare,
+  snoozeEyeCare,
+  closeCurrentWindow,
+} from "../services/reminder";
 
 function EyeCarePopup() {
   const [remaining, setRemaining] = useState(20);
   const [intensity, setIntensity] = useState<"gentle" | "locked" | "strict">("gentle");
   const [completed, setCompleted] = useState(false);
+  const [eyeCareInterval, setEyeCareInterval] = useState(30);
 
   useEffect(() => {
-    invoke<{
-      eye_care_lock_seconds: number;
-      eye_care_intensity: string;
-    }>("get_settings")
+    getSettings()
       .then((s) => {
         const sec = s.eye_care_lock_seconds || 20;
         setRemaining(sec);
         setIntensity(s.eye_care_intensity as typeof intensity);
+        setEyeCareInterval(s.eye_care_interval_minutes || 30);
       })
       .catch(console.error);
   }, []);
@@ -39,12 +42,22 @@ function EyeCarePopup() {
     return () => clearInterval(timer);
   }, [remaining, completed]);
 
+  // 倒计时结束后自动关闭弹窗
+  useEffect(() => {
+    if (completed) {
+      const timeout = setTimeout(() => {
+        confirmEyeCare().catch(console.error);
+      }, 1500);
+      return () => clearTimeout(timeout);
+    }
+  }, [completed]);
+
   const handleComplete = useCallback(() => {
-    invoke("confirm_eye_care").catch(console.error);
+    confirmEyeCare().catch(console.error);
   }, []);
 
   const handleSnooze = useCallback((minutes: number) => {
-    invoke("snooze_eye_care", { minutes }).catch(console.error);
+    snoozeEyeCare(minutes).catch(console.error);
   }, []);
 
   const canClose = intensity === "gentle" || completed;
@@ -73,7 +86,7 @@ function EyeCarePopup() {
     >
       {canClose && (
         <button
-          onClick={() => getCurrentWindow().close()}
+          onClick={() => closeCurrentWindow()}
           style={{
             position: "absolute",
             top: "12px",
@@ -99,17 +112,28 @@ function EyeCarePopup() {
         {formatTime(remaining)}
       </div>
 
-      <div style={{ fontSize: "16px", color: "#666", marginBottom: "24px" }}>
-        {completed ? "休息完成，放松一下吧" : "该让眼睛休息一下了"}
+      <div
+        style={{
+          fontSize: "16px",
+          color: "#666",
+          marginBottom: "24px",
+          textAlign: "center",
+          padding: "0 24px",
+          lineHeight: 1.6,
+        }}
+      >
+        {completed
+          ? "休息完成，放松一下吧"
+          : `您已经持续用眼 ${eyeCareInterval} 分钟，请休息，看远方 1 分钟`}
       </div>
 
       {intensity !== "gentle" && !completed && (
         <div style={{ fontSize: "12px", color: "#999", marginBottom: "16px" }}>
-          倒计时结束后方可关闭
+          倒计时结束后自动关闭
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "12px" }}>
+      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
         {completed ? (
           <button
             onClick={handleComplete}
@@ -127,6 +151,20 @@ function EyeCarePopup() {
           </button>
         ) : (
           <>
+            <button
+              onClick={handleComplete}
+              style={{
+                padding: "8px 20px",
+                borderRadius: "8px",
+                border: "none",
+                background: "#4a90d9",
+                color: "#fff",
+                fontSize: "14px",
+                cursor: "pointer",
+              }}
+            >
+              立即完成
+            </button>
             <button
               onClick={() => handleSnooze(5)}
               style={{

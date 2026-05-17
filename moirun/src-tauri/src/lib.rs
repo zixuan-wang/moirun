@@ -2,16 +2,15 @@ use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 use tauri_plugin_store::StoreExt;
 
+mod commands;
+mod persistence;
 mod power_monitor;
-mod settings;
-mod stats;
 mod timer;
 mod tray;
 mod window;
 
-use settings::AppSettings;
-use stats::DailyStats;
-use timer::{spawn_timer_loop, TimerState, TimerStatus};
+use persistence::{AppSettings, DailyStats};
+use timer::{spawn_timer_loop, SystemClock, TimerState, TimerStatus};
 use window::{close_all_overlay_windows, close_eyecare_window, get_or_create_eyecare_window, get_or_create_settings_window};
 
 #[tauri::command]
@@ -27,7 +26,7 @@ fn set_settings(
 ) -> Result<(), String> {
     settings.save(&store)?;
     if let Ok(mut ts) = timer_state.lock() {
-        ts.update_from_settings(&settings);
+        commands::apply_settings_core(&settings, &mut ts);
     }
     Ok(())
 }
@@ -44,13 +43,11 @@ fn confirm_water(
     app: tauri::AppHandle,
 ) -> Result<DailyStats, String> {
     let mut stats = DailyStats::load(&store);
-    stats.increment_water();
+    let mut ts = timer_state.lock().map_err(|e| e.to_string())?;
+
+    commands::confirm_water_core(&mut stats, &mut ts);
+
     stats.save(&store)?;
-
-    if let Ok(mut ts) = timer_state.lock() {
-        ts.reset_water_timer();
-    }
-
     let _ = app.emit("stats-updated", &stats);
     Ok(stats)
 }
@@ -61,9 +58,10 @@ fn confirm_eye_care(
     app: tauri::AppHandle,
 ) -> Result<DailyStats, String> {
     let mut stats = DailyStats::load(&store);
-    stats.increment_eye_care();
-    stats.save(&store)?;
 
+    commands::confirm_eye_care_core(&mut stats);
+
+    stats.save(&store)?;
     close_eyecare_window(&app);
     close_all_overlay_windows(&app);
 
@@ -77,9 +75,9 @@ fn snooze_eye_care(
     timer_state: tauri::State<'_, Arc<Mutex<TimerState>>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    if let Ok(mut ts) = timer_state.lock() {
-        ts.snooze_eye(minutes);
-    }
+    let mut ts = timer_state.lock().map_err(|e| e.to_string())?;
+    commands::snooze_eye_care_core(&mut ts, minutes);
+    drop(ts);
     close_eyecare_window(&app);
     close_all_overlay_windows(&app);
     Ok(())
@@ -91,9 +89,8 @@ fn toggle_do_not_disturb(
     timer_state: tauri::State<'_, Arc<Mutex<TimerState>>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    if let Ok(mut ts) = timer_state.lock() {
-        ts.set_dnd(minutes);
-    }
+    let mut ts = timer_state.lock().map_err(|e| e.to_string())?;
+    commands::toggle_dnd_core(&mut ts, minutes);
     let _ = app.emit("do-not-disturb-changed", minutes.is_some());
     Ok(())
 }
@@ -132,6 +129,27 @@ fn get_timer_status(timer_state: tauri::State<'_, Arc<Mutex<TimerState>>>) -> Re
     Ok(ts.get_status())
 }
 
+fn spawn_date_rollover_thread(
+    app_handle: tauri::AppHandle,
+    store: Arc<tauri_plugin_store::Store<tauri::Wry>>,
+) {
+    std::thread::spawn(move || {
+        let mut last_date = chrono::Local::now().format("%Y-%m-%d").to_string();
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(300));
+            let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+            if today != last_date {
+                let mut stats = DailyStats::load(&store);
+                if stats.check_and_reset(&today) {
+                    let _ = stats.save(&store);
+                    let _ = app_handle.emit("stats-updated", &stats);
+                }
+                last_date = today;
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -161,11 +179,12 @@ pub fn run() {
             app.manage(store.clone());
 
             let settings = AppSettings::load(&store);
-            let timer_state = Arc::new(Mutex::new(TimerState::from_settings(&settings)));
+            let clock: Arc<dyn timer::Clock> = Arc::new(SystemClock);
+            let timer_state = Arc::new(Mutex::new(TimerState::from_settings(&settings, clock.clone())));
             app.manage(timer_state.clone());
 
             tray::setup_tray(app.handle(), timer_state.clone())?;
-            spawn_timer_loop(app.handle().clone(), timer_state.clone());
+            spawn_timer_loop(app.handle().clone(), timer_state.clone(), clock);
 
             let ts_suspend = timer_state.clone();
             let ts_resume = timer_state.clone();
@@ -182,23 +201,7 @@ pub fn run() {
                 },
             );
 
-            let app_handle = app.handle().clone();
-            let store_clone = store.clone();
-            std::thread::spawn(move || {
-                let mut last_date = chrono::Local::now().format("%Y-%m-%d").to_string();
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(300));
-                    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-                    if today != last_date {
-                        last_date = today;
-                        let mut stats = DailyStats::load(&store_clone);
-                        if stats.check_and_reset() {
-                            let _ = stats.save(&store_clone);
-                            let _ = app_handle.emit("stats-updated", &stats);
-                        }
-                    }
-                }
-            });
+            spawn_date_rollover_thread(app.handle().clone(), store.clone());
 
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.hide();

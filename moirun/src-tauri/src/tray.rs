@@ -4,10 +4,58 @@ use tauri::{
     AppHandle, Emitter, Manager, Wry,
 };
 
-use crate::settings::AppSettings;
+use crate::commands;
+use crate::persistence::AppSettings;
 use crate::timer::TimerState;
 use crate::window::get_or_create_settings_window;
 use std::sync::{Arc, Mutex};
+
+/// 托盘控制器 —— 封装托盘菜单事件与领域对象之交互
+pub struct TrayController {
+    timer_state: Arc<Mutex<TimerState>>,
+}
+
+impl TrayController {
+    pub fn new(timer_state: Arc<Mutex<TimerState>>) -> Self {
+        Self { timer_state }
+    }
+
+    pub fn toggle_water(&self, app: &AppHandle) {
+        let store = app.state::<Arc<tauri_plugin_store::Store<Wry>>>();
+        let mut settings = AppSettings::load(&store);
+        if let Ok(mut ts) = self.timer_state.lock() {
+            commands::toggle_water_core(&mut settings, &mut ts);
+        }
+        let _ = settings.save(&store);
+    }
+
+    pub fn toggle_eye(&self, app: &AppHandle) {
+        let store = app.state::<Arc<tauri_plugin_store::Store<Wry>>>();
+        let mut settings = AppSettings::load(&store);
+        if let Ok(mut ts) = self.timer_state.lock() {
+            commands::toggle_eye_core(&mut settings, &mut ts);
+        }
+        let _ = settings.save(&store);
+    }
+
+    pub fn set_dnd(&self, minutes: Option<u64>) {
+        if let Ok(mut ts) = self.timer_state.lock() {
+            commands::toggle_dnd_core(&mut ts, minutes);
+        }
+    }
+
+    pub fn show_stats(&self, app: &AppHandle) {
+        let _ = app.emit("show-stats", ());
+    }
+
+    pub fn open_settings(&self, app: &AppHandle) {
+        let _ = get_or_create_settings_window(app);
+    }
+
+    pub fn quit(&self, app: &AppHandle) {
+        app.exit(0);
+    }
+}
 
 pub fn build_tray_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
     let menu = Menu::new(app).map_err(|e| e.to_string())?;
@@ -54,54 +102,21 @@ pub fn build_tray_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
 
 pub fn setup_tray(app: &AppHandle, timer_state: Arc<Mutex<TimerState>>) -> Result<(), String> {
     let menu = build_tray_menu(app)?;
+    let controller = TrayController::new(timer_state);
 
     let _tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(move |app, event| match event.id.as_ref() {
-            "water_toggle" => {
-                let store = app.state::<Arc<tauri_plugin_store::Store<Wry>>>();
-                let mut settings = AppSettings::load(&store);
-                settings.water_reminder_enabled = !settings.water_reminder_enabled;
-                let _ = settings.save(&store);
-                if let Ok(mut ts) = timer_state.lock() {
-                    ts.water_enabled = settings.water_reminder_enabled;
-                }
-            }
-            "eye_toggle" => {
-                let store = app.state::<Arc<tauri_plugin_store::Store<Wry>>>();
-                let mut settings = AppSettings::load(&store);
-                settings.eye_care_enabled = !settings.eye_care_enabled;
-                let _ = settings.save(&store);
-                if let Ok(mut ts) = timer_state.lock() {
-                    ts.eye_enabled = settings.eye_care_enabled;
-                }
-            }
-            "dnd_off" => {
-                if let Ok(mut ts) = timer_state.lock() {
-                    ts.set_dnd(None);
-                }
-            }
-            "dnd_30" => {
-                if let Ok(mut ts) = timer_state.lock() {
-                    ts.set_dnd(Some(30));
-                }
-            }
-            "dnd_60" => {
-                if let Ok(mut ts) = timer_state.lock() {
-                    ts.set_dnd(Some(60));
-                }
-            }
-            "stats" => {
-                let _ = app.emit("show-stats", ());
-            }
-            "settings" => {
-                let _ = get_or_create_settings_window(app);
-            }
-            "quit" => {
-                app.exit(0);
-            }
+            "water_toggle" => controller.toggle_water(app),
+            "eye_toggle" => controller.toggle_eye(app),
+            "dnd_off" => controller.set_dnd(None),
+            "dnd_30" => controller.set_dnd(Some(30)),
+            "dnd_60" => controller.set_dnd(Some(60)),
+            "stats" => controller.show_stats(app),
+            "settings" => controller.open_settings(app),
+            "quit" => controller.quit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {

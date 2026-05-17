@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { enable, disable } from "@tauri-apps/plugin-autostart";
+import {
+  getSettings,
+  getTodayStats,
+  getTimerStatus,
+  confirmWater,
+  setSettings as saveSettingsApi,
+  onStatsUpdated,
+} from "../services/reminder";
 import type { AppSettings, DailyStats, TimerStatus } from "../types";
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -35,28 +41,33 @@ function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    invoke<AppSettings>("get_settings")
+    getSettings()
       .then((s) => setSettings(s))
       .catch(console.error);
 
-    invoke<DailyStats>("get_today_stats")
+    getTodayStats()
       .then((s) => setStats(s))
       .catch(console.error);
 
-    const unlistenStats = listen<DailyStats>("stats-updated", (e) => {
-      setStats(e.payload);
-    });
+    let unlistenStats: (() => void) | null = null;
+
+    onStatsUpdated((s) => {
+      setStats(s);
+    }).then((fn) => {
+      unlistenStats = fn;
+    }).catch(console.error);
 
     return () => {
-      unlistenStats.then((fn) => fn());
+      if (unlistenStats) unlistenStats();
     };
   }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      invoke<TimerStatus>("get_timer_status")
+      getTimerStatus()
         .then((s) => setTimerStatus(s))
         .catch(console.error);
     }, 1000);
@@ -73,7 +84,7 @@ function SettingsPage() {
 
   const saveSettings = useCallback(() => {
     setSaving(true);
-    invoke("set_settings", { settings })
+    saveSettingsApi(settings)
       .then(() => {
         setSaved(true);
         setHasChanges(false);
@@ -148,7 +159,7 @@ function SettingsPage() {
         <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
           <button
             onClick={() =>
-              invoke<DailyStats>("confirm_water")
+              confirmWater()
                 .then((s) => setStats(s))
                 .catch(console.error)
             }
@@ -166,23 +177,29 @@ function SettingsPage() {
             已喝水
           </button>
           <button
-            onClick={() =>
-              invoke<DailyStats>("get_today_stats")
+            onClick={() => {
+              setRefreshing(true);
+              getTodayStats()
                 .then((s) => setStats(s))
-                .catch(console.error)
-            }
+                .catch((err) => {
+                  console.error("刷新失败:", err);
+                  alert("刷新失败: " + err);
+                })
+                .finally(() => setRefreshing(false));
+            }}
+            disabled={refreshing}
             style={{
               flex: 1,
               padding: "8px",
               borderRadius: "8px",
               border: "1px solid #ddd",
-              background: "#fff",
+              background: refreshing ? "#f5f5f5" : "#fff",
               fontSize: "13px",
-              cursor: "pointer",
-              color: "#666",
+              cursor: refreshing ? "not-allowed" : "pointer",
+              color: refreshing ? "#aaa" : "#666",
             }}
           >
-            刷新统计
+            {refreshing ? "刷新中..." : "刷新统计"}
           </button>
         </div>
       </div>
