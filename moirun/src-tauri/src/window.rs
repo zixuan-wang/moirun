@@ -10,7 +10,7 @@ pub fn get_or_create_settings_window(app: &AppHandle) -> Result<WebviewWindow, S
     let window = tauri::WebviewWindowBuilder::new(
         app,
         "settings",
-        tauri::WebviewUrl::App("/#/settings".into()),
+        tauri::WebviewUrl::App("index.html".into()),
     )
     .title("设置")
     .inner_size(520.0, 640.0)
@@ -18,6 +18,8 @@ pub fn get_or_create_settings_window(app: &AppHandle) -> Result<WebviewWindow, S
     .decorations(true)
     .build()
     .map_err(|e| e.to_string())?;
+
+    let _ = window.eval("window.location.hash = '#/settings';");
 
     Ok(window)
 }
@@ -32,7 +34,7 @@ pub fn get_or_create_eyecare_window(app: &AppHandle) -> Result<WebviewWindow, St
     let window = tauri::WebviewWindowBuilder::new(
         app,
         "eyecare",
-        tauri::WebviewUrl::App("/#/eyecare".into()),
+        tauri::WebviewUrl::App("index.html".into()),
     )
     .title("护眼提醒")
     .inner_size(420.0, 320.0)
@@ -41,6 +43,8 @@ pub fn get_or_create_eyecare_window(app: &AppHandle) -> Result<WebviewWindow, St
     .always_on_top(true)
     .build()
     .map_err(|e| e.to_string())?;
+
+    let _ = window.eval("window.location.hash = '#/eyecare';");
 
     Ok(window)
 }
@@ -63,7 +67,7 @@ pub fn create_overlay_windows(app: &AppHandle) -> Result<Vec<WebviewWindow>, Str
         let window = tauri::WebviewWindowBuilder::new(
             app,
             &label,
-            tauri::WebviewUrl::App("/#/overlay".into()),
+            tauri::WebviewUrl::App("index.html".into()),
         )
         .title("")
         .inner_size(size.width as f64, size.height as f64)
@@ -73,6 +77,8 @@ pub fn create_overlay_windows(app: &AppHandle) -> Result<Vec<WebviewWindow>, Str
         .skip_taskbar(true)
         .build()
         .map_err(|e| e.to_string())?;
+
+        let _ = window.eval("window.location.hash = '#/overlay';");
 
         overlays.push(window);
     }
