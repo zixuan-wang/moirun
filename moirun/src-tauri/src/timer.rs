@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
-use crate::persistence::AppSettings;
+use crate::persistence::{AppSettings, EyeCareIntensity};
 
 pub trait Clock: Send + Sync {
     fn now(&self) -> Instant;
@@ -35,7 +35,7 @@ pub struct TimerState {
     pub eye_enabled: bool,
     pub eye_interval: Duration,
     pub eye_next: Instant,
-    pub eye_intensity: String,
+    pub eye_intensity: EyeCareIntensity,
 
     pub dnd: DoNotDisturbState,
     pub eye_snooze_until: Option<Instant>,
@@ -147,7 +147,7 @@ pub struct TimerStatus {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ReminderEvent {
     Water,
-    EyeCare { intensity: String },
+    EyeCare { intensity: EyeCareIntensity },
 }
 
 /// 纯函数：检查一次定时器状态，如有提醒到期则返回事件并更新状态
@@ -244,7 +244,7 @@ mod tests {
             water_interval_minutes: 30,
             eye_care_enabled: true,
             eye_care_interval_minutes: 45,
-            eye_care_intensity: "gentle".to_string(),
+            eye_care_intensity: EyeCareIntensity::Gentle,
             eye_care_lock_seconds: 20,
             auto_start: false,
         };
@@ -325,7 +325,7 @@ mod tests {
         // water 间隔设长，避免与 eye 干扰
         let settings = AppSettings {
             water_interval_minutes: 60,
-            eye_care_intensity: "strict".to_string(),
+            eye_care_intensity: EyeCareIntensity::Strict,
             ..AppSettings::default()
         };
         let mut ts = TimerState::from_settings(&settings, clock.clone());
@@ -337,7 +337,7 @@ mod tests {
         assert_eq!(
             tick(&mut ts),
             Some(ReminderEvent::EyeCare {
-                intensity: "strict".to_string()
+                intensity: EyeCareIntensity::Strict
             })
         );
         assert!(ts.eye_next > eye_next_before);
@@ -391,6 +391,6 @@ mod tests {
 
         // 越过 snooze 结束时间（再推进 5 分钟）
         clock.advance(Duration::from_secs(5 * 60));
-        assert_eq!(tick(&mut ts), Some(ReminderEvent::EyeCare { intensity: "gentle".to_string() }));
+        assert_eq!(tick(&mut ts), Some(ReminderEvent::EyeCare { intensity: EyeCareIntensity::Gentle }));
     }
 }

@@ -45,7 +45,7 @@ pub fn toggle_eye_core(settings: &mut AppSettings, timer_state: &mut TimerState)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::persistence::AppSettings;
+    use crate::persistence::{AppSettings, EyeCareIntensity};
     use crate::timer::{MockClock, TimerState};
     use std::sync::Arc;
     use std::time::{Duration, Instant};
@@ -108,7 +108,7 @@ mod tests {
             water_interval_minutes: 60,
             eye_care_enabled: false,
             eye_care_interval_minutes: 90,
-            eye_care_intensity: "strict".to_string(),
+            eye_care_intensity: EyeCareIntensity::Strict,
             eye_care_lock_seconds: 30,
             auto_start: true,
         };
@@ -117,6 +117,6 @@ mod tests {
 
         assert!(!ts.water_enabled);
         assert!(!ts.eye_enabled);
-        assert_eq!(ts.eye_intensity, "strict");
+        assert_eq!(ts.eye_intensity, EyeCareIntensity::Strict);
     }
 }

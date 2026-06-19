@@ -3,6 +3,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AppSettings, DailyStats, TimerStatus } from "../types";
 
+export type EyeCareIntensity = "gentle" | "locked" | "strict";
+
 export async function getSettings(): Promise<AppSettings> {
   return invoke<AppSettings>("get_settings");
 }
@@ -35,7 +37,7 @@ export async function openSettingsWindow(): Promise<void> {
   return invoke("open_settings_window");
 }
 
-export async function openEyeCareWindow(intensity: string): Promise<void> {
+export async function openEyeCareWindow(intensity: EyeCareIntensity): Promise<void> {
   return invoke("open_eye_care_window", { intensity });
 }
 
@@ -61,9 +63,9 @@ export async function onWaterReminder(callback: () => void): Promise<UnlistenFn>
 }
 
 export async function onEyeCareReminder(
-  callback: (intensity: string) => void
+  callback: (intensity: EyeCareIntensity) => void
 ): Promise<UnlistenFn> {
-  const unlisten = await listen<string>("eye-care-reminder", (e) => {
+  const unlisten = await listen<EyeCareIntensity>("eye-care-reminder", (e) => {
     callback(e.payload);
   });
   return unlisten;

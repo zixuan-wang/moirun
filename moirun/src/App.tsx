@@ -11,6 +11,7 @@ import {
   onShowStats,
   openEyeCareWindow,
   openSettingsWindow,
+  type EyeCareIntensity,
 } from "./services/reminder";
 import SettingsPage from "./pages/SettingsPage";
 import EyeCarePopup from "./pages/EyeCarePopup";
@@ -39,7 +40,7 @@ function App() {
       });
       unlistenWater = uw;
 
-      const ue = await onEyeCareReminder(async (intensity) => {
+      const ue = await onEyeCareReminder(async (intensity: EyeCareIntensity) => {
         await openEyeCareWindow(intensity);
       });
       unlistenEye = ue;

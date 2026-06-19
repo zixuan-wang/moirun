@@ -4,11 +4,12 @@ import {
   confirmEyeCare,
   snoozeEyeCare,
   closeCurrentWindow,
+  type EyeCareIntensity,
 } from "../services/reminder";
 
 function EyeCarePopup() {
   const [remaining, setRemaining] = useState(20);
-  const [intensity, setIntensity] = useState<"gentle" | "locked" | "strict">("gentle");
+  const [intensity, setIntensity] = useState<EyeCareIntensity>("gentle");
   const [completed, setCompleted] = useState(false);
   const [eyeCareInterval, setEyeCareInterval] = useState(30);
 
@@ -17,7 +18,7 @@ function EyeCarePopup() {
       .then((s) => {
         const sec = s.eye_care_lock_seconds || 20;
         setRemaining(sec);
-        setIntensity(s.eye_care_intensity as typeof intensity);
+        setIntensity(s.eye_care_intensity);
         setEyeCareInterval(s.eye_care_interval_minutes || 30);
       })
       .catch(console.error);

@@ -1,6 +1,24 @@
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 
+/// 护眼提醒强度
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum EyeCareIntensity {
+    /// 温和模式：弹窗可随时关闭
+    Gentle,
+    /// 锁时模式：倒计时结束后可关闭
+    Locked,
+    /// 严格模式：全屏遮罩覆盖所有显示器
+    Strict,
+}
+
+impl Default for EyeCareIntensity {
+    fn default() -> Self {
+        EyeCareIntensity::Gentle
+    }
+}
+
 pub trait KeyValueStore {
     fn get(&self, key: &str) -> Option<serde_json::Value>;
     fn set(&self, key: &str, value: serde_json::Value);
@@ -55,7 +73,7 @@ pub struct AppSettings {
     pub water_interval_minutes: u64,
     pub eye_care_enabled: bool,
     pub eye_care_interval_minutes: u64,
-    pub eye_care_intensity: String,
+    pub eye_care_intensity: EyeCareIntensity,
     pub eye_care_lock_seconds: u64,
     pub auto_start: bool,
 }
@@ -67,7 +85,7 @@ impl Default for AppSettings {
             water_interval_minutes: 30,
             eye_care_enabled: true,
             eye_care_interval_minutes: 30,
-            eye_care_intensity: "gentle".to_string(),
+            eye_care_intensity: EyeCareIntensity::default(),
             eye_care_lock_seconds: 20,
             auto_start: false,
         }
@@ -186,7 +204,7 @@ mod tests {
             water_interval_minutes: 60,
             eye_care_enabled: false,
             eye_care_interval_minutes: 90,
-            eye_care_intensity: "strict".to_string(),
+            eye_care_intensity: EyeCareIntensity::Strict,
             eye_care_lock_seconds: 30,
             auto_start: true,
         };
@@ -196,7 +214,7 @@ mod tests {
 
         assert!(!loaded.water_reminder_enabled);
         assert_eq!(loaded.water_interval_minutes, 60);
-        assert_eq!(loaded.eye_care_intensity, "strict");
+        assert_eq!(loaded.eye_care_intensity, EyeCareIntensity::Strict);
     }
 
     #[test]

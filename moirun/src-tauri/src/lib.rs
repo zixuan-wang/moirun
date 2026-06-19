@@ -9,7 +9,7 @@ mod timer;
 mod tray;
 mod window;
 
-use persistence::{AppSettings, DailyStats};
+use persistence::{AppSettings, DailyStats, EyeCareIntensity};
 use timer::{spawn_timer_loop, SystemClock, TimerState, TimerStatus};
 use window::{close_all_overlay_windows, close_eyecare_window, get_or_create_eyecare_window, get_or_create_settings_window};
 
@@ -102,8 +102,8 @@ fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_eye_care_window(app: tauri::AppHandle, intensity: String) -> Result<(), String> {
-    if intensity == "strict" {
+fn open_eye_care_window(app: tauri::AppHandle, intensity: EyeCareIntensity) -> Result<(), String> {
+    if intensity == EyeCareIntensity::Strict {
         let _ = window::create_overlay_windows(&app);
     }
     get_or_create_eyecare_window(&app)?;
@@ -152,7 +152,7 @@ fn spawn_date_rollover_thread(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -209,6 +209,12 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|_app_handle, event| {
+        if let tauri::RunEvent::ExitRequested { .. } = event {
+            power_monitor::cleanup();
+        }
+    });
 }
