@@ -44,8 +44,9 @@ jobs:
         with:
           projectPath: ./moirun
           tagName: v__VERSION__
-          releaseName: '眸润 v__VERSION__'
+          # 使用与 tag 一致的 release 名称，避免创建名为“眸润 vX.Y.Z”的独立 draft release
+          releaseName: 'v__VERSION__'
           releaseBody: '跨平台桌面健康提醒应用。详见 [CHANGELOG](../CHANGELOG.md)。'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
