@@ -10,7 +10,7 @@ pub fn get_or_create_settings_window(app: &AppHandle) -> Result<WebviewWindow, S
     let window = tauri::WebviewWindowBuilder::new(
         app,
         "settings",
-        tauri::WebviewUrl::App("index.html".into()),
+        tauri::WebviewUrl::App("index.html#/settings".into()),
     )
     .title("设置")
     .inner_size(520.0, 640.0)
@@ -18,8 +18,6 @@ pub fn get_or_create_settings_window(app: &AppHandle) -> Result<WebviewWindow, S
     .decorations(true)
     .build()
     .map_err(|e| e.to_string())?;
-
-    let _ = window.eval("window.location.hash = '#/settings';");
 
     Ok(window)
 }
@@ -34,7 +32,7 @@ pub fn get_or_create_eyecare_window(app: &AppHandle) -> Result<WebviewWindow, St
     let window = tauri::WebviewWindowBuilder::new(
         app,
         "eyecare",
-        tauri::WebviewUrl::App("index.html".into()),
+        tauri::WebviewUrl::App("index.html#/eyecare".into()),
     )
     .title("护眼提醒")
     .inner_size(420.0, 320.0)
@@ -43,8 +41,6 @@ pub fn get_or_create_eyecare_window(app: &AppHandle) -> Result<WebviewWindow, St
     .always_on_top(true)
     .build()
     .map_err(|e| e.to_string())?;
-
-    let _ = window.eval("window.location.hash = '#/eyecare';");
 
     Ok(window)
 }
@@ -61,24 +57,25 @@ pub fn create_overlay_windows(app: &AppHandle) -> Result<Vec<WebviewWindow>, Str
 
     for (i, monitor) in monitors.iter().enumerate() {
         let label = format!("overlay-{}", i);
+        // monitor.size()/position() 返回物理像素，需换算为逻辑像素，
+        // 否则高 DPI（如 Retina）屏幕上遮罩会成倍放大并错位
+        let scale = monitor.scale_factor();
         let size = monitor.size();
         let position = monitor.position();
 
         let window = tauri::WebviewWindowBuilder::new(
             app,
             &label,
-            tauri::WebviewUrl::App("index.html".into()),
+            tauri::WebviewUrl::App("index.html#/overlay".into()),
         )
         .title("")
-        .inner_size(size.width as f64, size.height as f64)
-        .position(position.x as f64, position.y as f64)
+        .inner_size(size.width as f64 / scale, size.height as f64 / scale)
+        .position(position.x as f64 / scale, position.y as f64 / scale)
         .decorations(false)
         .always_on_top(true)
         .skip_taskbar(true)
         .build()
         .map_err(|e| e.to_string())?;
-
-        let _ = window.eval("window.location.hash = '#/overlay';");
 
         overlays.push(window);
     }
@@ -87,14 +84,9 @@ pub fn create_overlay_windows(app: &AppHandle) -> Result<Vec<WebviewWindow>, Str
 }
 
 pub fn close_all_overlay_windows(app: &AppHandle) {
-    let monitors = match app.available_monitors() {
-        Ok(m) => m,
-        Err(_) => return,
-    };
-
-    for i in 0..monitors.len() {
-        let label = format!("overlay-{}", i);
-        if let Some(window) = app.get_webview_window(&label) {
+    // 不依赖当前显示器数量推导 label，避免两次提醒之间拔掉显示器导致残留
+    for (label, window) in app.webview_windows() {
+        if label.starts_with("overlay-") {
             let _ = window.close();
         }
     }

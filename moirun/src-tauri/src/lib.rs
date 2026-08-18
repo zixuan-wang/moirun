@@ -25,9 +25,8 @@ fn set_settings(
     timer_state: tauri::State<'_, Arc<Mutex<TimerState>>>,
 ) -> Result<(), String> {
     settings.save(&store)?;
-    if let Ok(mut ts) = timer_state.lock() {
-        commands::apply_settings_core(&settings, &mut ts);
-    }
+    let mut ts = timer_state.lock().map_err(|e| e.to_string())?;
+    commands::apply_settings_core(&settings, &mut ts);
     Ok(())
 }
 

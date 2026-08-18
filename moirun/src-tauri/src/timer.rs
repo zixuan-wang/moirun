@@ -70,10 +70,26 @@ impl TimerState {
     }
 
     pub fn update_from_settings(&mut self, settings: &AppSettings) {
+        let new_water_interval = Duration::from_secs(settings.water_interval_minutes * 60);
+        let new_eye_interval = Duration::from_secs(settings.eye_care_interval_minutes * 60);
+
+        // 间隔变化或开关由关到开时重排下次触发时间，
+        // 否则旧间隔会继续生效一次，且重新启用会因 _next 早已过期而立即提醒
+        if settings.water_reminder_enabled
+            && (!self.water_enabled || new_water_interval != self.water_interval)
+        {
+            self.water_next = self.clock.now() + new_water_interval;
+        }
+        if settings.eye_care_enabled
+            && (!self.eye_enabled || new_eye_interval != self.eye_interval)
+        {
+            self.eye_next = self.clock.now() + new_eye_interval;
+        }
+
         self.water_enabled = settings.water_reminder_enabled;
-        self.water_interval = Duration::from_secs(settings.water_interval_minutes * 60);
+        self.water_interval = new_water_interval;
         self.eye_enabled = settings.eye_care_enabled;
-        self.eye_interval = Duration::from_secs(settings.eye_care_interval_minutes * 60);
+        self.eye_interval = new_eye_interval;
         self.eye_intensity = settings.eye_care_intensity.clone();
     }
 
@@ -121,6 +137,13 @@ impl TimerState {
                 let elapsed = self.clock.now().saturating_duration_since(start);
                 self.water_next += elapsed;
                 self.eye_next += elapsed;
+                // snooze 与 DND 截止时间同样顺延，避免睡眠期间"白过"
+                if let Some(t) = self.eye_snooze_until.as_mut() {
+                    *t += elapsed;
+                }
+                if let DoNotDisturbState::Until(t) = &mut self.dnd {
+                    *t += elapsed;
+                }
             }
         }
     }
@@ -368,6 +391,68 @@ mod tests {
         clock.advance(ts.water_interval + Duration::from_secs(1));
 
         assert_eq!(tick(&mut ts), None);
+    }
+
+    #[test]
+    fn update_settings_reschedules_on_interval_change() {
+        let start = Instant::now();
+        let clock = Arc::new(MockClock::new(start));
+        let settings = AppSettings::default();
+        let mut ts = TimerState::from_settings(&settings, clock.clone());
+
+        // 间隔从 30 改为 60 分钟，下次触发应重新从 now + 60min 起算
+        let mut new_settings = settings.clone();
+        new_settings.water_interval_minutes = 60;
+        ts.update_from_settings(&new_settings);
+
+        assert_eq!(ts.water_interval, Duration::from_secs(60 * 60));
+        assert_eq!(ts.water_next, start + Duration::from_secs(60 * 60));
+    }
+
+    #[test]
+    fn update_settings_reschedules_on_reenable() {
+        let start = Instant::now();
+        let clock = Arc::new(MockClock::new(start));
+        let settings = AppSettings::default();
+        let mut ts = TimerState::from_settings(&settings, clock.clone());
+
+        // 禁用后时间推进远超间隔，water_next 已过期
+        //（同时禁用护眼，避免 tick 检查时被护眼事件干扰）
+        let mut disabled = settings.clone();
+        disabled.water_reminder_enabled = false;
+        disabled.eye_care_enabled = false;
+        ts.update_from_settings(&disabled);
+        clock.advance(Duration::from_secs(24 * 3600));
+
+        // 重新启用：应重置为 now + interval，而非立即触发
+        ts.update_from_settings(&settings);
+        let now = clock.now();
+        assert_eq!(ts.water_next, now + ts.water_interval);
+        assert_eq!(tick(&mut ts), None);
+    }
+
+    #[test]
+    fn system_pause_extends_snooze_and_dnd() {
+        let start = Instant::now();
+        let clock = Arc::new(MockClock::new(start));
+        let settings = AppSettings::default();
+        let mut ts = TimerState::from_settings(&settings, clock.clone());
+
+        ts.snooze_eye(5);
+        ts.set_dnd(Some(30));
+        let snooze_before = ts.eye_snooze_until.unwrap();
+
+        ts.enter_system_pause();
+        clock.advance(Duration::from_secs(60));
+        ts.exit_system_pause();
+
+        assert_eq!(ts.eye_snooze_until.unwrap(), snooze_before + Duration::from_secs(60));
+        match ts.dnd {
+            DoNotDisturbState::Until(t) => {
+                assert_eq!(t, start + Duration::from_secs(30 * 60) + Duration::from_secs(60));
+            }
+            DoNotDisturbState::Off => panic!("dnd should still be active"),
+        }
     }
 
     #[test]

@@ -61,6 +61,16 @@ function EyeCarePopup() {
     snoozeEyeCare(minutes).catch(console.error);
   }, []);
 
+  // 严格模式下直接关闭当前窗口会导致全屏遮罩残留，
+  // 必须走 confirmEyeCare（后端会同时关闭所有 overlay 窗口）
+  const handleClose = useCallback(() => {
+    if (intensity === "strict") {
+      confirmEyeCare().catch(console.error);
+    } else {
+      closeCurrentWindow().catch(console.error);
+    }
+  }, [intensity]);
+
   const canClose = intensity === "gentle" || completed;
 
   const formatTime = (s: number) => {
@@ -87,7 +97,7 @@ function EyeCarePopup() {
     >
       {canClose && (
         <button
-          onClick={() => closeCurrentWindow()}
+          onClick={handleClose}
           style={{
             position: "absolute",
             top: "12px",

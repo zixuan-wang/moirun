@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { enable, disable } from "@tauri-apps/plugin-autostart";
 import {
   getSettings,
@@ -7,6 +7,7 @@ import {
   confirmWater,
   setSettings as saveSettingsApi,
   onStatsUpdated,
+  onSettingsChanged,
 } from "../services/reminder";
 import type { AppSettings, DailyStats, TimerStatus } from "../types";
 
@@ -42,6 +43,8 @@ function SettingsPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // 跟踪是否有未保存修改，避免托盘开关触发的 settings-changed 覆盖正在编辑的内容
+  const hasChangesRef = useRef(false);
 
   useEffect(() => {
     getSettings()
@@ -60,8 +63,18 @@ function SettingsPage() {
       unlistenStats = fn;
     }).catch(console.error);
 
+    let unlistenSettingsChanged: (() => void) | null = null;
+    onSettingsChanged((s) => {
+      if (!hasChangesRef.current) {
+        setSettings(s);
+      }
+    }).then((fn) => {
+      unlistenSettingsChanged = fn;
+    }).catch(console.error);
+
     return () => {
       if (unlistenStats) unlistenStats();
+      if (unlistenSettingsChanged) unlistenSettingsChanged();
     };
   }, []);
 
@@ -80,6 +93,7 @@ function SettingsPage() {
   ) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
+    hasChangesRef.current = true;
   }, []);
 
   const saveSettings = useCallback(() => {
@@ -88,6 +102,7 @@ function SettingsPage() {
       .then(() => {
         setSaved(true);
         setHasChanges(false);
+        hasChangesRef.current = false;
         setTimeout(() => setSaved(false), 1500);
       })
       .catch((err) => {

@@ -27,6 +27,8 @@ impl TrayController {
             commands::toggle_water_core(&mut settings, &mut ts);
         }
         let _ = settings.save(&store);
+        // 通知已打开的设置窗口刷新 UI
+        let _ = app.emit("settings-changed", &settings);
     }
 
     pub fn toggle_eye(&self, app: &AppHandle) {
@@ -36,12 +38,14 @@ impl TrayController {
             commands::toggle_eye_core(&mut settings, &mut ts);
         }
         let _ = settings.save(&store);
+        let _ = app.emit("settings-changed", &settings);
     }
 
-    pub fn set_dnd(&self, minutes: Option<u64>) {
+    pub fn set_dnd(&self, app: &AppHandle, minutes: Option<u64>) {
         if let Ok(mut ts) = self.timer_state.lock() {
             commands::toggle_dnd_core(&mut ts, minutes);
         }
+        let _ = app.emit("do-not-disturb-changed", minutes.is_some());
     }
 
     pub fn show_stats(&self, app: &AppHandle) {
@@ -107,13 +111,14 @@ pub fn setup_tray(app: &AppHandle, timer_state: Arc<Mutex<TimerState>>) -> Resul
     let _tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
-        .show_menu_on_left_click(true)
+        // 左键打开设置窗口（见 on_tray_icon_event），右键弹菜单；
+        // 不要同时开启 show_menu_on_left_click，否则左键会既弹菜单又开窗
         .on_menu_event(move |app, event| match event.id.as_ref() {
             "water_toggle" => controller.toggle_water(app),
             "eye_toggle" => controller.toggle_eye(app),
-            "dnd_off" => controller.set_dnd(None),
-            "dnd_30" => controller.set_dnd(Some(30)),
-            "dnd_60" => controller.set_dnd(Some(60)),
+            "dnd_off" => controller.set_dnd(app, None),
+            "dnd_30" => controller.set_dnd(app, Some(30)),
+            "dnd_60" => controller.set_dnd(app, Some(60)),
             "stats" => controller.show_stats(app),
             "settings" => controller.open_settings(app),
             "quit" => controller.quit(app),

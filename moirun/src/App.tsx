@@ -5,6 +5,7 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   onWaterReminder,
   onEyeCareReminder,
@@ -51,7 +52,12 @@ function App() {
       unlistenStats = us;
     }
 
-    setupListeners();
+    // 提醒事件监听只在 main 窗口注册一次；
+    // settings/eyecare/overlay 窗口也加载本组件，若重复注册会导致
+    // 重复通知与并发开窗冲突
+    if (getCurrentWindow().label === "main") {
+      setupListeners();
+    }
 
     return () => {
       if (unlistenWater) unlistenWater();

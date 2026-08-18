@@ -85,6 +85,15 @@ export async function onShowStats(callback: () => void): Promise<UnlistenFn> {
   return unlisten;
 }
 
+export async function onSettingsChanged(
+  callback: (settings: AppSettings) => void
+): Promise<UnlistenFn> {
+  const unlisten = await listen<AppSettings>("settings-changed", (e) => {
+    callback(e.payload);
+  });
+  return unlisten;
+}
+
 export async function onDoNotDisturbChanged(
   callback: (active: boolean) => void
 ): Promise<UnlistenFn> {
